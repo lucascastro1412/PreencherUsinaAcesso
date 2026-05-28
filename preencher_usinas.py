@@ -157,7 +157,8 @@ def select_por_texto(page, name, texto, descricao=""):
 def react_fill(page, selector, valor, descricao=""):
     """
     Preenche input de formulário React usando o setter nativo + evento input.
-    Isso garante que o state do React seja atualizado.
+    Funciona para campos de texto simples (nomeUsina, unidadeGeradora, datas).
+    Para campos com máscara numérica use keyboard_fill.
     """
     if vazio(valor):
         return
@@ -183,6 +184,41 @@ def react_fill(page, selector, valor, descricao=""):
         }""",
         {"sel": selector, "val": valor_str},
     )
+    print(f"  ✓ {descricao}: {valor_str}")
+
+
+def keyboard_fill(page, selector, valor, descricao="", casas_decimais=4):
+    """
+    Preenche input com máscara numérica via teclado (simulação de digitação).
+    Necessário para campos como MWm, MWac, MWp, kWh que usam máscara.
+    Arredonda para casas_decimais casas decimais antes de digitar.
+    """
+    if vazio(valor):
+        return
+
+    # Arredonda o valor numérico para evitar casa decimais em excesso
+    try:
+        num = round(float(str(valor)), casas_decimais)
+        valor_str = f"{num:.{casas_decimais}f}".rstrip("0").rstrip(".")
+        if "." not in valor_str:
+            valor_str = valor_str  # inteiro, ok
+    except (ValueError, TypeError):
+        valor_str = str(valor).strip()
+
+    el = page.query_selector(selector)
+    if not el:
+        print(f"  ✗ {descricao}: campo não encontrado ({selector})")
+        return
+    if el.is_disabled():
+        return
+
+    el.click()
+    page.keyboard.press("Control+a")
+    page.keyboard.press("Delete")
+    page.wait_for_timeout(100)
+    page.keyboard.type(valor_str, delay=40)
+    page.keyboard.press("Tab")
+    page.wait_for_timeout(150)
     print(f"  ✓ {descricao}: {valor_str}")
 
 
@@ -315,9 +351,9 @@ def fill_form(page, row, screenshots_dir=None, num=0):
     for field_name, col in INPUTS_BY_NAME.items():
         react_fill(page, f"input[name='{field_name}']", row.get(col), col)
 
-    # 5. Inputs por placeholder
+    # 5. Inputs por placeholder (campos com máscara numérica — usar teclado)
     for placeholder, col in INPUTS_BY_PLACEHOLDER.items():
-        react_fill(page, f"input[placeholder='{placeholder}']", row.get(col), col)
+        keyboard_fill(page, f"input[placeholder='{placeholder}']", row.get(col), col)
 
     # 6. Datas
     for field_name, (col, fmt) in DATE_FIELDS.items():
