@@ -26,7 +26,7 @@ EMAIL    = "lucas.castro@thopenergy.com.br"
 PASSWORD = "krkbdoya"
 
 # Caminho completo para a planilha .xlsx
-PLANILHA = r"C:\Users\LucasSilvaCastro\OneDrive - Thopen\Área de Trabalho\Dados para ACESSO _ Portfólio.xlsx"
+PLANILHA = "C:/Users/LucasSilvaCastro/OneDrive - Thopen/Área de Trabalho/Dados para ACESSO _ Portfólio.xlsx"
 
 # None = processa todas as linhas
 # 1    = apenas a primeira linha
