@@ -26,15 +26,12 @@ EMAIL    = "lucas.castro@thopenergy.com.br"
 PASSWORD = "krkbdoya"
 
 # Caminho completo para a planilha .xlsx
-# Exemplos:
-#   Windows: r"C:\Users\Lucas\Downloads\Dados_para_ACESSO_Portfolio.xlsx"
-#   Mac/Linux: "/Users/lucas/Downloads/Dados_para_ACESSO_Portfolio.xlsx"
-PLANILHA = r"Dados_para_ACESSO_Portfolio.xlsx"
+PLANILHA = r"C:\Users\LucasSilvaCastro\OneDrive - Thopen\Área de Trabalho\Dados para ACESSO _ Portfólio.xlsx"
 
 # None = processa todas as linhas
 # 1    = apenas a primeira linha
 # 2    = apenas a segunda linha
-APENAS_LINHA = None
+APENAS_LINHA = 1
 
 # 1 = começa da linha 1 (padrão)
 # 2 = pula a linha 1 e começa da 2
