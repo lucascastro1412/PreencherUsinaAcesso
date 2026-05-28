@@ -60,6 +60,8 @@ EMPRESA_CNPJ  = "0001-48"
 import os
 import sys
 import time
+import shutil
+import tempfile
 import pandas as pd
 from playwright.sync_api import sync_playwright
 
@@ -315,7 +317,17 @@ def main():
         return
 
     print(f"\n→ Lendo planilha...")
-    df = pd.read_excel(PLANILHA, sheet_name=EXCEL_SHEET, header=0)
+    # Copia para pasta temporária para evitar PermissionError (arquivo aberto no Excel / OneDrive)
+    try:
+        tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
+        tmp.close()
+        shutil.copy2(PLANILHA, tmp.name)
+        df = pd.read_excel(tmp.name, sheet_name=EXCEL_SHEET, header=0)
+        os.unlink(tmp.name)
+    except PermissionError:
+        print("\nERRO: Não foi possível abrir a planilha.")
+        print("→ Feche o arquivo no Excel e aguarde o OneDrive terminar de sincronizar.")
+        return
     df = df.dropna(how="all")
     print(f"  ✓ {len(df)} linhas encontradas na aba '{EXCEL_SHEET}'")
 
