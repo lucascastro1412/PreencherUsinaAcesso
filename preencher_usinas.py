@@ -457,6 +457,7 @@ def main():
     parser.add_argument("--inspect",     action="store_true", help="Inspeciona campos do formulário")
     parser.add_argument("--dry-run",     action="store_true", help="Simula sem acessar o site")
     parser.add_argument("--linha",       type=int,            help="Processa apenas a linha N (1-based)")
+    parser.add_argument("--de-linha",    type=int, default=1, help="Começa a partir da linha N (1-based, padrão: 1)")
     parser.add_argument("--show-browser",action="store_true", help="Abre janela visível (xvfb necessário)")
     parser.add_argument("--screenshots", action="store_true", help="Salva prints em ./screenshots/")
     args = parser.parse_args()
@@ -470,7 +471,9 @@ def main():
         df = ler_planilha(args.planilha)
         if args.linha:
             df = df.iloc[[args.linha - 1]]
-        for i, (_, row) in enumerate(df.iterrows(), start=1):
+        elif args.de_linha > 1:
+            df = df.iloc[args.de_linha - 1:]
+        for i, (_, row) in enumerate(df.iterrows(), start=args.de_linha if not args.linha else 1):
             processar_linha(None, row.to_dict(), i, dry_run=True)
         return
 
@@ -511,9 +514,13 @@ def main():
             if args.linha:
                 df = df.iloc[[args.linha - 1]]
                 print(f"  → Apenas linha {args.linha}")
+            elif args.de_linha > 1:
+                df = df.iloc[args.de_linha - 1:]
+                print(f"  → A partir da linha {args.de_linha}")
 
+            start_num = args.de_linha if not args.linha else 1
             ok = falhou = 0
-            for i, (_, row) in enumerate(df.iterrows(), start=1):
+            for i, (_, row) in enumerate(df.iterrows(), start=start_num):
                 sucesso = processar_linha(
                     page, row.to_dict(), i,
                     screenshots_dir=screenshots_dir,
