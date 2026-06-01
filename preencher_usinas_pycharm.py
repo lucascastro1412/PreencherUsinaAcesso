@@ -1,17 +1,63 @@
 """
 =============================================================
   AUTOMAÇÃO - PREENCHER USINAS NO ACESSO ENERGIA
-  Versão para PyCharm
+  Versão para rodar diretamente no PyCharm
 =============================================================
-INSTALAÇÃO (rode uma vez no terminal do PyCharm):
-  pip install playwright pandas openpyxl
-  python -m playwright install chromium
+
+COMO USAR:
+  1. Instale as dependências (uma vez só):
+       pip install playwright pandas openpyxl
+       python -m playwright install chromium
+
+  2. Edite a seção CONFIG abaixo com:
+       - suas credenciais
+       - caminho da planilha
+       - opções de execução
+
+  3. Clique em Run (Shift+F10)
 =============================================================
 """
 
+
 # ============================================================
-#  IMPORTS — não mova daqui
+#  CONFIG — edite aqui antes de rodar
 # ============================================================
+
+EMAIL    = "lucas.castro@thopenergy.com.br"
+PASSWORD = "krkbdoya"
+
+# Caminho completo para a planilha .xlsx
+PLANILHA = "C:/Users/LucasSilvaCastro/OneDrive - Thopen/Área de Trabalho/Dados para ACESSO _ cotesa.xlsx"
+
+# None = processa todas as linhas
+# 1    = apenas a primeira linha
+# 2    = apenas a segunda linha
+APENAS_LINHA = None
+
+# 1 = começa da linha 1 (padrão)
+# 2 = pula a linha 1 e começa da 2
+DE_LINHA = 1
+
+# True  = abre janela do navegador (você vê o que está acontecendo)
+# False = roda invisível (mais rápido)
+MOSTRAR_NAVEGADOR = True
+
+# True  = salva screenshots na pasta ./screenshots/
+SALVAR_SCREENSHOTS = True
+
+# True  = simula sem enviar dados ao site (para testar)
+DRY_RUN = False
+
+# ============================================================
+#  Empresa padrão (campo obrigatório não presente na planilha)
+# ============================================================
+EMPRESA_BUSCA = "THOPEN ENERGIA S.A."
+EMPRESA_CNPJ  = "0001-48"
+
+# ============================================================
+#  NÃO EDITE ABAIXO DESTA LINHA
+# ============================================================
+
 import os
 import sys
 import time
@@ -34,39 +80,6 @@ except ImportError:
     sys.exit(1)
 
 
-# ============================================================
-#  CONFIG — edite aqui antes de rodar
-# ============================================================
-
-EMAIL    = "lucas.castro@thopenergy.com.br"
-PASSWORD = "krkbdoya"
-
-# Caminho da planilha (use / mesmo no Windows)
-PLANILHA = "C:/Users/LucasSilvaCastro/OneDrive - Thopen/Área de Trabalho/Dados para ACESSO _ Portfólio.xlsx"
-
-# None = todas as linhas | 1 = só linha 1 | 2 = só linha 2 ...
-APENAS_LINHA = 1
-
-# Começa a partir da linha N (ignorado se APENAS_LINHA estiver definido)
-DE_LINHA = 1
-
-# True  = você vê o navegador abrindo na tela
-MOSTRAR_NAVEGADOR = True
-
-# True  = salva prints de tela em ./screenshots/
-SALVAR_SCREENSHOTS = True
-
-# True  = apenas simula, NÃO cadastra no site
-DRY_RUN = False
-
-# Empresa padrão (campo obrigatório não presente na planilha)
-EMPRESA_BUSCA = "THOPEN ENERGIA S.A."
-EMPRESA_CNPJ  = "0001-48"
-
-
-# ============================================================
-#  CONSTANTES — não edite
-# ============================================================
 BASE_URL    = "https://rzk.acessoenergia.com.br"
 NEW_URL     = f"{BASE_URL}/page/crm/usinas/new"
 LOGIN_URL   = f"{BASE_URL}/auth/login"
@@ -88,8 +101,9 @@ DEFAULTS_SELECTS = {
     "idAreaResponsavelUsina": "Portfólio",
 }
 
+# nomeUsina: coluna "UG*" (planilhas novas) ou "Unnamed: 7" (planilhas antigas)
 INPUTS_BY_NAME = {
-    "nomeUsina":       "UG*",                  # fallback: "Unnamed: 7" (planilhas antigas)
+    "nomeUsina":       "UG*",
     "nomeUsina2":      "DETALHE UG/ APELIDO",
     "unidadeGeradora": "Num. UC/UG",
 }
@@ -108,9 +122,7 @@ DATE_FIELDS = {
 }
 
 
-# ============================================================
-#  UTILITÁRIOS
-# ============================================================
+# --- Utilitários ---
 
 def vazio(v):
     return v is None or (isinstance(v, float) and pd.isna(v)) or str(v).strip() in ("", "nan")
@@ -131,59 +143,50 @@ def formatar_data(v, fmt):
         return str(v).strip()
 
 
-# ============================================================
-#  PREENCHIMENTO DE CAMPOS
-# ============================================================
+# --- Preenchimento ---
 
 def select_por_texto(page, name, texto, descricao=""):
     if vazio(texto): return
     texto_str = str(texto).strip()
     el = page.query_selector(f"select[name='{name}']")
     if not el:
-        print(f"  ✗ {descricao or name}: campo não encontrado")
-        return
+        print(f"  ✗ {descricao or name}: não encontrado"); return
     if el.is_disabled():
         atual = el.evaluate("el => el.options[el.selectedIndex]?.text?.trim() || ''")
-        print(f"  ↷ {descricao or name}: autopreenchido '{atual}'")
-        return
+        print(f"  ↷ {descricao or name}: autopreenchido '{atual}'"); return
     opts = el.evaluate("el => Array.from(el.options).map(o => ({value:o.value, text:o.text.trim()}))")
-    for sufixo, fn in [
-        ("",          lambda a, b: a == b),
-        (" (ci)",     lambda a, b: a.lower() == b.lower()),
-        (" (parcial)",lambda a, b: b.lower() in a.lower() or a.lower() in b.lower()),
+    for nivel, fn in [
+        ("", lambda a, b: a == b),
+        (" (ci)", lambda a, b: a.lower() == b.lower()),
+        (" (parcial)", lambda a, b: b.lower() in a.lower() or a.lower() in b.lower()),
     ]:
         for o in opts:
             if fn(o["text"], texto_str):
                 el.select_option(value=o["value"])
-                print(f"  ✓ {descricao or name}{sufixo}: {o['text']}")
-                return
+                print(f"  ✓ {descricao or name}{nivel}: {o['text']}"); return
     print(f"  ✗ {descricao or name}: '{texto_str}' não encontrado")
-
 
 def react_fill(page, selector, valor, descricao=""):
     if vazio(valor): return
     el = page.query_selector(selector)
     if not el:
-        print(f"  ✗ {descricao}: campo não encontrado ({selector})")
-        return
+        print(f"  ✗ {descricao}: campo não encontrado"); return
     if el.is_disabled(): return
     page.evaluate("""(args) => {
         const el = document.querySelector(args.sel);
         if (!el) return;
-        const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype,'value').set;
         s.call(el, args.val);
-        el.dispatchEvent(new Event('input',  {bubbles: true}));
-        el.dispatchEvent(new Event('change', {bubbles: true}));
+        el.dispatchEvent(new Event('input',  {bubbles:true}));
+        el.dispatchEvent(new Event('change', {bubbles:true}));
     }""", {"sel": selector, "val": str(valor).strip()})
     print(f"  ✓ {descricao}: {valor}")
-
 
 def keyboard_fill(page, selector, valor, descricao="", casas=4):
     if vazio(valor): return
     el = page.query_selector(selector)
     if not el:
-        print(f"  ✗ {descricao}: campo não encontrado ({selector})")
-        return
+        print(f"  ✗ {descricao}: campo não encontrado"); return
     if el.is_disabled(): return
     try:
         num = round(float(str(valor)), casas)
@@ -199,41 +202,32 @@ def keyboard_fill(page, selector, valor, descricao="", casas=4):
     page.wait_for_timeout(150)
     print(f"  ✓ {descricao}: {val_str}")
 
-
 def selecionar_empresa(page):
     el = page.query_selector("select[name='idEmpresa']")
     if not el: return
     opts = el.evaluate("el => Array.from(el.options).map(o => ({value:o.value, text:o.text.trim()}))")
     cands = [o for o in opts if EMPRESA_BUSCA.lower() in o["text"].lower()]
     if not cands:
-        print(f"  ✗ Empresa '{EMPRESA_BUSCA}' não encontrada")
-        return
+        print(f"  ✗ Empresa '{EMPRESA_BUSCA}' não encontrada"); return
     match = next((c for c in cands if EMPRESA_CNPJ in c["text"]), cands[0])
     el.select_option(value=match["value"])
     print(f"  ✓ Empresa: {match['text']}")
-
 
 def aguardar_autopreenchimento(page):
     for _ in range(40):
         page.wait_for_timeout(300)
         sel = page.query_selector("select[name='projeto']")
-        if sel and sel.is_disabled():
-            return
+        if sel and sel.is_disabled(): return
     page.wait_for_timeout(1000)
-
 
 def fill_form(page, row, screenshots_dir, linha_num):
     step = [0]
-
     def ss(nome):
         if screenshots_dir:
             step[0] += 1
-            page.screenshot(
-                path=os.path.join(screenshots_dir, f"{linha_num:02d}-{step[0]:02d}-{nome}.png"),
-                full_page=False,
-            )
+            page.screenshot(path=f"{screenshots_dir}/{linha_num:02d}-{step[0]:02d}-{nome}.png", full_page=False)
 
-    # 1. Projeto (dispara autopreenchimento)
+    # 1. Projeto
     proj = row.get("Usina (Projeto)*")
     if not vazio(proj):
         select_por_texto(page, "projeto", proj, "Usina (Projeto)*")
@@ -270,12 +264,10 @@ def fill_form(page, row, screenshots_dir, linha_num):
     ss("formulario-preenchido")
 
 
-# ============================================================
-#  FLUXO POR LINHA
-# ============================================================
+# --- Fluxo principal ---
 
 def processar_linha(page, row, linha_num, screenshots_dir):
-    usina = row.get("Unnamed: 7") or row.get("UG*") or f"Linha {linha_num}"
+    usina = row.get("UG*") or row.get("Unnamed: 7") or f"Linha {linha_num}"
     print(f"\n{'='*60}")
     print(f"Linha {linha_num}: {usina}")
     print(f"{'='*60}")
@@ -283,23 +275,21 @@ def processar_linha(page, row, linha_num, screenshots_dir):
     if DRY_RUN:
         print("  [DRY RUN] dados:")
         for k, v in row.items():
-            if not vazio(v):
-                print(f"    {k}: {v}")
+            if not vazio(v): print(f"    {k}: {v}")
         return True
 
     page.goto(NEW_URL, wait_until="networkidle")
     page.wait_for_timeout(2000)
 
     if screenshots_dir:
-        page.screenshot(path=os.path.join(screenshots_dir, f"{linha_num:02d}-00-vazio.png"))
+        page.screenshot(path=f"{screenshots_dir}/{linha_num:02d}-00-vazio.png")
 
     fill_form(page, row, screenshots_dir, linha_num)
     page.wait_for_timeout(500)
 
     btn = page.query_selector("button:has-text('Salvar')")
     if not btn or not btn.is_visible():
-        print("  ✗ Botão 'Salvar' não encontrado")
-        return False
+        print("  ✗ Botão 'Salvar' não encontrado"); return False
 
     api_calls = []
     page.on("request", lambda r: api_calls.append(r))
@@ -307,7 +297,7 @@ def processar_linha(page, row, linha_num, screenshots_dir):
     page.wait_for_timeout(4000)
 
     if screenshots_dir:
-        page.screenshot(path=os.path.join(screenshots_dir, f"{linha_num:02d}-99-resultado.png"))
+        page.screenshot(path=f"{screenshots_dir}/{linha_num:02d}-99-resultado.png")
 
     hits = [r for r in api_calls if not any(
         x in r.url for x in [".js", ".css", ".png", ".ico", ".woff", "clarity", "fonts"]
@@ -324,16 +314,13 @@ def processar_linha(page, row, linha_num, screenshots_dir):
               .map(e => e.textContent.trim()).filter(t => t && t.length < 300)
     """)
     if erros:
-        print(f"  ✗ Erro: {erros[:2]}")
-        return False
+        print(f"  ✗ Erro: {erros[:2]}"); return False
 
-    print(f"  ⚠ Verifique manualmente se foi salvo")
+    print(f"  ⚠ Verificar manualmente se foi salvo")
     return True
 
 
-# ============================================================
-#  MAIN
-# ============================================================
+# --- Entry point ---
 
 def main():
     print("=" * 60)
@@ -345,11 +332,10 @@ def main():
     print("=" * 60)
 
     if not os.path.exists(PLANILHA):
-        print(f"\nERRO: Planilha não encontrada:\n  {PLANILHA}")
-        print("Verifique o caminho na variável PLANILHA no topo do script.")
+        print(f"\nERRO: Planilha não encontrada: {PLANILHA}")
+        print("Verifique o caminho na variável PLANILHA no início do script.")
         return
 
-    # Copia para pasta temporária (evita PermissionError com arquivo aberto/OneDrive)
     print(f"\n→ Lendo planilha...")
     try:
         tmp = tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False)
@@ -366,7 +352,7 @@ def main():
         return
 
     df = df.dropna(how="all")
-    print(f"  ✓ {len(df)} linha(s) encontrada(s) na aba '{EXCEL_SHEET}'")
+    print(f"  ✓ {len(df)} linhas encontradas na aba '{EXCEL_SHEET}'")
 
     if APENAS_LINHA:
         df = df.iloc[[APENAS_LINHA - 1]]
@@ -383,11 +369,9 @@ def main():
 
     screenshots_dir = None
     if SALVAR_SCREENSHOTS:
-        screenshots_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), "screenshots"
-        )
+        screenshots_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "screenshots")
         os.makedirs(screenshots_dir, exist_ok=True)
-        print(f"  📸 Screenshots em: {screenshots_dir}")
+        print(f"  Screenshots em: {screenshots_dir}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=not MOSTRAR_NAVEGADOR, slow_mo=80)
@@ -410,7 +394,7 @@ def main():
                 print("\nERRO: Login falhou — verifique EMAIL e PASSWORD no topo do script.")
                 return
 
-            print("  ✓ Login OK")
+            print(f"  ✓ Login OK")
 
             start = DE_LINHA if not APENAS_LINHA else 1
             ok = falhou = 0
