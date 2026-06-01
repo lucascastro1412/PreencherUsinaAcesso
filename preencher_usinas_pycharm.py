@@ -89,7 +89,7 @@ DEFAULTS_SELECTS = {
 }
 
 INPUTS_BY_NAME = {
-    "nomeUsina":       "Unnamed: 7",
+    "nomeUsina":       "UG*",                  # fallback: "Unnamed: 7" (planilhas antigas)
     "nomeUsina2":      "DETALHE UG/ APELIDO",
     "unidadeGeradora": "Num. UC/UG",
 }
@@ -253,7 +253,11 @@ def fill_form(page, row, screenshots_dir, linha_num):
 
     # 4. Inputs texto
     for field, col in INPUTS_BY_NAME.items():
-        react_fill(page, f"input[name='{field}']", row.get(col), col)
+        val = row.get(col)
+        # Compatibilidade: nomeUsina pode estar como "UG*" (nova) ou "Unnamed: 7" (antiga)
+        if field == "nomeUsina" and vazio(val):
+            val = row.get("Unnamed: 7" if col == "UG*" else "UG*")
+        react_fill(page, f"input[name='{field}']", val, col)
 
     # 5. Inputs numéricos com máscara
     for placeholder, col in INPUTS_BY_PLACEHOLDER.items():

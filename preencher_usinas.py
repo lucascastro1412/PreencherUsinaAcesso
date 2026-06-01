@@ -58,11 +58,11 @@ DEFAULTS_SELECTS = {
 }
 
 # input[name] → coluna da planilha
-# nomeUsina  = "Usina (UC/UG)*"       → coluna "Unnamed: 7"  (ex: UFV Goytacazes 5.13)
-# nomeUsina2 = "Usina (UC/UG) Apelido"→ coluna "DETALHE UG/ APELIDO"
+# nomeUsina  = coluna "UG*" (planilhas novas) ou "Unnamed: 7" (planilhas antigas)
+# nomeUsina2 = coluna "DETALHE UG/ APELIDO"
 INPUTS_BY_NAME = {
-    "nomeUsina":        "Unnamed: 7",           # Nome combinado projeto.UG
-    "nomeUsina2":       "DETALHE UG/ APELIDO",  # Apelido (ex: Atua_ACER_UFV Vila Nova 1.13_Enel RJ)
+    "nomeUsina":        "UG*",                  # Nome da UG — fallback: "Unnamed: 7"
+    "nomeUsina2":       "DETALHE UG/ APELIDO",  # Apelido
     "unidadeGeradora":  "Num. UC/UG",           # Número da UC
 }
 
@@ -349,7 +349,11 @@ def fill_form(page, row, screenshots_dir=None, num=0):
 
     # 4. Inputs por name
     for field_name, col in INPUTS_BY_NAME.items():
-        react_fill(page, f"input[name='{field_name}']", row.get(col), col)
+        val = row.get(col)
+        # Compatibilidade: nomeUsina pode estar como "UG*" (nova) ou "Unnamed: 7" (antiga)
+        if field_name == "nomeUsina" and vazio(val):
+            val = row.get("Unnamed: 7" if col == "UG*" else "UG*")
+        react_fill(page, f"input[name='{field_name}']", val, col)
 
     # 5. Inputs por placeholder (campos com máscara numérica — usar teclado)
     for placeholder, col in INPUTS_BY_PLACEHOLDER.items():
